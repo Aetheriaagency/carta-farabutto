@@ -15,7 +15,7 @@
     --serif:'Playfair Display',Georgia,serif; --sans:'Open Sans',system-ui,sans-serif; --hand:'Shadows Into Light',cursive;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;background:var(--cover-bg);font-family:var(--sans);color:var(--ink);}
+  html,body{margin:0;background:var(--cover-bg);font-family:var(--sans);color:var(--ink);overscroll-behavior:none;}
 
   #book{position:relative;width:100%;max-width:520px;margin:0 auto;background:var(--cover-bg);}
   .page{background:linear-gradient(160deg,var(--paper) 0%,var(--paper-soft) 100%);display:flex;flex-direction:column;}
@@ -202,8 +202,8 @@ var ALG = {"glu": "🌾 Gluten", "cru": "🦐 Crustáceos", "hue": "🥚 Huevo",
   var tabsEl=document.getElementById('tabs'), dotsEl=document.getElementById('dots');
   var navPrev=document.getElementById('navPrev'), navNext=document.getElementById('navNext');
   var cur=0, pf=null;
-  if(navPrev) navPrev.addEventListener('click',function(){ if(pf) pf.flipPrev(); });
-  if(navNext) navNext.addEventListener('click',function(){ if(pf) pf.flipNext(); });
+  if(navPrev) navPrev.addEventListener('click',function(){ if(pf){ var i=pf.getCurrentPageIndex(); if(i>0){ pf.turnToPage(i-1); cur=pf.getCurrentPageIndex(); sync(); } } });
+  if(navNext) navNext.addEventListener('click',function(){ if(pf){ var i=pf.getCurrentPageIndex(); if(i<src.length-1) pf.flip(i+1); } });
 
   meta.forEach(function(m,i){
     if(m.tab){
@@ -252,21 +252,29 @@ var ALG = {"glu": "🌾 Gluten", "cru": "🦐 Crustáceos", "hue": "🥚 Huevo",
     try{
       if(!window.St || !St.PageFlip) throw new Error('StPageFlip no disponible');
       setVH();
-      var g={x:0,y:0,decided:false,block:false};
-      document.addEventListener('touchstart',function(e){var t=e.touches[0];g.x=t.clientX;g.y=t.clientY;g.decided=false;g.block=false;},{capture:true,passive:true});
+      // Gestos en movil: swipe HORIZONTAL en cualquier zona = pasar pagina (funciona en
+      // iPhone, sin depender del borde, que choca con el gesto "atras" de iOS); swipe
+      // VERTICAL = scroll. El flip lo disparamos nosotros; StPageFlip no maneja el tactil.
+      var g={x:0,y:0,decided:false,mode:''};
+      document.addEventListener('touchstart',function(e){var t=e.touches[0];g.x=t.clientX;g.y=t.clientY;g.decided=false;g.mode='';},{capture:true,passive:true});
       document.addEventListener('touchmove',function(e){
         if(!g.decided){
           var t=e.touches[0],dx=t.clientX-g.x,dy=t.clientY-g.y;
-          if(Math.abs(dx)>5||Math.abs(dy)>5){
-            g.decided=true;
-            var w=window.innerWidth,edge=Math.max(40,w*0.10);
-            var fromEdge=g.x<edge||g.x>(w-edge);
-            g.block=(!fromEdge && Math.abs(dy)>=Math.abs(dx));
+          if(Math.abs(dx)>8||Math.abs(dy)>8){ g.decided=true; g.mode=(Math.abs(dx)>Math.abs(dy)*1.2)?'flip':'scroll'; }
+        }
+        if(g.decided) e.stopPropagation();
+      },{capture:true,passive:true});
+      document.addEventListener('touchend',function(e){
+        if(!g.decided) return;
+        e.stopPropagation();
+        if(g.mode==='flip' && pf){
+          var t=e.changedTouches[0], dx=t.clientX-g.x, ci=pf.getCurrentPageIndex();
+          if(Math.abs(dx)>40){
+            if(dx<0 && ci<src.length-1){ pf.flip(ci+1); }
+            else if(dx>0 && ci>0){ pf.turnToPage(ci-1); cur=pf.getCurrentPageIndex(); sync(); }
           }
         }
-        if(g.block) e.stopPropagation();
       },{capture:true,passive:true});
-      document.addEventListener('touchend',function(e){ if(g.block){ e.stopPropagation(); } },{capture:true,passive:true});
 
       var el=document.getElementById('flip');
       pf=new St.PageFlip(el,{
